@@ -25,14 +25,15 @@
 'FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 'OTHER DEALINGS IN THE SOFTWARE.
 
-function RlByteCache(maxSize as Integer, sizeFunction as Dynamic) as Object
+function RlByteCache(owner as Object, name as String, maxSize as Integer, sizeFunction as Dynamic) as Object
     this = {
+        name: name
         maxSize: maxSize
         sizeFunction: sizeFunction
         items: {}
         timer: CreateObject("roTimespan")
         size: 0
-        fillFactor: 0.75
+        fillFactor: 0.80
         
         stats: {hits: 0, misses: 0}
         
@@ -48,6 +49,8 @@ function RlByteCache(maxSize as Integer, sizeFunction as Dynamic) as Object
         Clear: RlByteCache_Clear
         CacheItem: RlByteCacheItem
         Exists: RlByteCache_Exists
+        TotalSize: RlByteCache_TotalSize
+        NeedsPurge: RlByteCache_NeedsPurge
         
         PRIORITY_LOW: 1
         PRIORITY_NORMAL: 2
@@ -55,11 +58,21 @@ function RlByteCache(maxSize as Integer, sizeFunction as Dynamic) as Object
     }
     
     this.purgeSize = this.fillFactor * this.maxSize
-    
+
+    if owner <> invalid then
+        if owner.Caches = invalid then
+            owner.Caches = []
+        end if
+
+        owner.Caches.Push(this)
+    end if
+
     return this
 end function
 
 function RlByteCache_Get(key as String) as Dynamic
+    StartTimer("RlByteCache_Get")
+
     item = m.items[key]
     
     if item <> invalid
@@ -80,19 +93,28 @@ function RlByteCache_Get(key as String) as Dynamic
         m.stats.misses = m.stats.misses + 1
     end if
     
+    EndTimer("RlByteCache_Get")
     return returnVal
 end function
 
+function RlByteCache_NeedsPurge() as Boolean
+    if m.size > m.maxSize and m.maxSize > 0 then
+        return true
+    else
+        return false
+    end if
+end function
+
 function RlByteCache_Set(key as String, value as Dynamic, options = invalid as Dynamic) as Void
+    StartTimer("RlByteCache_Set")
+    
     if m.items[key] <> invalid
         m.RemoveItem(key)
     end if
-    m.AddItem(m.CacheItem(key, value, options))
 
-    while m.size > m.maxSize and m.maxSize > 0 'Need a while loop since we want to purge bitmaps until there are enough free bytes
-        m.Purge()
-    end while
+    m.AddItem(m.CacheItem(key, value, options))
     
+    EndTimer("RlByteCache_Set")
 end function
 
 function RlByteCache_Clear() as Void
@@ -100,8 +122,14 @@ function RlByteCache_Clear() as Void
     m.size = 0
 end function
 
+function RlByteCache_TotalSize() as Integer
+    return m.size
+end function
+
 function RlByteCache_Purge() as Void
-	print "Purging..."
+    StartTimer("RlByteCache_Purge")
+
+	print "Purging...";m.Name
     tmpArray = []
     
     for each key in m.items
@@ -115,15 +143,13 @@ function RlByteCache_Purge() as Void
 
     'Compute total size of all elements in the cache
     totalSize = 0
-    max = tmpArray.Count() - 1
-    for i = 0 to max
-        item = tmpArray[i]
+    for each item in tmpArray
         totalSize = totalSize + m.sizeFunction(item.value)
     end for
     
     'Purge if total size is greater than purge size
     if totalSize > m.purgeSize
-        RlQuickSort(tmpArray, RlByteCache_Comparator)
+        QuickSort(tmpArray, RlByteCache_Comparator)
         
         for i = 0 to tmpArray.Count() - 1
             item = tmpArray[i]
@@ -135,6 +161,9 @@ function RlByteCache_Purge() as Void
             totalSize = totalSize - m.sizeFunction(ritem.value)
         end while
     end if
+
+    m.size = totalSize
+    EndTimer("RlByteCache_Purge")
 end function
 
 function RlByteCache_AddItem(item as Object) as Void
@@ -152,8 +181,10 @@ function RlByteCache_IsExpired(item as Object) as Boolean
     now = m.timer.TotalMilliseconds()
     expired = false
     
-    if item.options.expirationAbsolute <> invalid and item.options.expirationAbsolute < now
-        expired = true
+    if item.options.expirationAbsolute <> invalid then
+        if item.options.expirationAbsolute < now
+            expired = true
+        end if
     end if
     
     if not expired and item.options.expirationSliding <> invalid

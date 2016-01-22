@@ -3,7 +3,7 @@
 '@return a RlBitmapManager object
 function RlBitmapManager(size as Integer) as Object
     this = {
-    	bitmaps: RlByteCache(size, RlBitmapSize)
+    	bitmaps: RlByteCache(invalid, "Global.BitmapManager", size, RlBitmapSize)
         scaledBitmaps: {}
         
         GetBitmap: RlBitmapManager_GetBitmap

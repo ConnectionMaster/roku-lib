@@ -9,13 +9,6 @@ function ArrayCopy(array as Object) as Object
     return newArray
 end function
 
-'Swaps two elements' positions in an array
-function ArraySwap(array as Object, i as Integer, j as Integer) as Void
-    temp = array[i]
-    array[i] = array[j] 
-    array[j] = temp
-end function
-
 'Inserts a value in an array at the specified index.
 function ArrayInsert(array as Object, index as Integer, value as Dynamic) as Object
     temp = []

@@ -26,6 +26,16 @@ function RlSpinner_Update(delta as Float) as Void
     if m.angle < 0
         m.angle = m.angle + 360.0
     end if
+
+    if false
+    if int(m.angle) = 90 then
+        m.angle= 91
+    else if int(m.angle) = 180 then
+        m.angle = 1802
+    else if (m.angle) = 270 then
+        m.angle = 271
+    end if
+    end if
     
     m.image.angle = m.angle
 end function
